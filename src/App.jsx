@@ -31,6 +31,7 @@ const optionVisuals = {
   mono: 'monkey',
   tigre: 'tiger',
 }
+const memoryPairs = ['cat', 'dog', 'rabbit', 'frog', 'monkey', 'tiger', 'fish', 'bird']
 
 function Icon({ name, size = 24, className = '' }) {
   const paths = {
@@ -144,6 +145,13 @@ function createQuestion(category, index) {
   return { prompt, options, answer, visual: 'number' }
 }
 
+function createMemoryDeck() {
+  return memoryPairs
+    .flatMap((visual) => [visual, visual])
+    .map((visual, index) => ({ id: `${visual}-${index}`, visual }))
+    .sort(() => Math.random() - 0.5)
+}
+
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('teacherToken') || '')
   const [teacher, setTeacher] = useState(() => {
@@ -174,6 +182,10 @@ function App() {
   const [gameFeedback, setGameFeedback] = useState('')
   const [gameFinished, setGameFinished] = useState(false)
   const [gameSaving, setGameSaving] = useState(false)
+  const [memoryCards, setMemoryCards] = useState([])
+  const [memoryFlipped, setMemoryFlipped] = useState([])
+  const [memoryMatched, setMemoryMatched] = useState([])
+  const [memoryLock, setMemoryLock] = useState(false)
 
   const selectedStudent = useMemo(
     () => students.find((student) => String(student.id) === selectedStudentId),
@@ -329,7 +341,9 @@ function App() {
   function speak(text) {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel()
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(text))
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = 'es-MX'
+      window.speechSynthesis.speak(utterance)
     }
   }
 
@@ -341,6 +355,12 @@ function App() {
     setGameFeedback('')
     setGameFinished(false)
     setMessage('')
+    if (activity.categoria === 'memoria') {
+      setMemoryCards(createMemoryDeck())
+      setMemoryFlipped([])
+      setMemoryMatched([])
+      setMemoryLock(false)
+    }
   }
 
   async function saveGameProgress(activity, correct, wrong) {
@@ -371,7 +391,7 @@ function App() {
     const isCorrect = option === question.answer
     const nextCorrect = gameCorrect + (isCorrect ? 1 : 0)
     const nextWrong = gameWrong + (isCorrect ? 0 : 1)
-    setGameFeedback(isCorrect ? '¡Muy bien! 🎉' : `La respuesta correcta es ${question.answer}`)
+    setGameFeedback(isCorrect ? '¡Muy bien! ' : `La respuesta correcta es ${question.answer}`)
     setGameCorrect(nextCorrect)
     setGameWrong(nextWrong)
 
@@ -383,6 +403,45 @@ function App() {
       } else {
         setGameQuestionIndex((current) => current + 1)
       }
+    }, 900)
+  }
+
+  function handleMemoryCardClick(cardIndex) {
+    if (memoryLock || memoryFlipped.includes(cardIndex) || memoryMatched.includes(cardIndex)) return
+
+    const nextFlipped = [...memoryFlipped, cardIndex]
+    setMemoryFlipped(nextFlipped)
+    if (nextFlipped.length < 2) return
+
+    const [firstIndex, secondIndex] = nextFlipped
+    const isMatch = memoryCards[firstIndex].visual === memoryCards[secondIndex].visual
+    setMemoryLock(true)
+
+    if (isMatch) {
+      const nextMatched = [...memoryMatched, firstIndex, secondIndex]
+      const nextCorrect = gameCorrect + 1
+      setMemoryMatched(nextMatched)
+      setGameCorrect(nextCorrect)
+      setMemoryFlipped([])
+      setMemoryLock(false)
+      setGameFeedback('¡Pareja encontrada!')
+
+      if (nextMatched.length === memoryCards.length) {
+        setGameFinished(true)
+        saveGameProgress(gameActivity, nextCorrect, gameWrong)
+      } else {
+        window.setTimeout(() => setGameFeedback(''), 700)
+      }
+      return
+    }
+
+    const nextWrong = gameWrong + 1
+    setGameWrong(nextWrong)
+    setGameFeedback('Intenta otra vez')
+    window.setTimeout(() => {
+      setMemoryFlipped([])
+      setMemoryLock(false)
+      setGameFeedback('')
     }, 900)
   }
 
@@ -478,12 +537,43 @@ function App() {
         <main className={`aplicacion-infantil pantalla-juego ${['espacial', 'figuras', 'memoria'].includes(gameActivity.categoria) ? 'juego-preprimaria' : ''}`}>
           <section className="tarjeta-juego">
             <button type="button" className="boton-regresar" onClick={() => setGameActivity(null)}>← Volver a actividades</button>
-            <div className="progreso-juego">Pregunta {gameQuestionIndex + 1} de {TOTAL_QUESTIONS}</div>
-            <span className="visual-pregunta"><Icon name={question.visual} size={54} /></span>
-            <button type="button" className="boton-escuchar" onClick={() => speak(question.prompt)}><Icon name="volume" size={18} /> Escuchar pregunta</button>
-            <h1 className={['espacial', 'figuras', 'memoria'].includes(gameActivity.categoria) ? 'pregunta-visual' : ''}>{question.prompt}</h1>
-            <div className="rejilla-respuestas">{question.options.map((option) => <button type="button" key={option} onClick={() => answerQuestion(option)}><span className="visual-respuesta"><Icon name={optionVisuals[option]} size={42} /></span><span className="etiqueta-respuesta">{option}</span></button>)}</div>
-            {gameFeedback ? <p className={`retroalimentacion-juego ${gameFeedback.startsWith('¡') ? 'correcto' : 'incorrecto'}`}>{gameFeedback}</p> : null}
+            {gameActivity.categoria === 'memoria' ? (
+              <>
+                <div className="progreso-juego">Parejas encontradas: {gameCorrect} de {memoryPairs.length}</div>
+                <h1 className="pregunta-visual">Encuentra las parejas</h1>
+                <p className="instruccion-memoria">Levanta dos cartas para descubrir si son iguales.</p>
+                <div className="tablero-memoria">
+                  {memoryCards.map((card, cardIndex) => {
+                    const isFlipped = memoryFlipped.includes(cardIndex) || memoryMatched.includes(cardIndex)
+                    const isMatched = memoryMatched.includes(cardIndex)
+                    return (
+                      <button
+                        type="button"
+                        className={`carta-memoria ${isFlipped ? 'volteada' : ''} ${isMatched ? 'encontrada' : ''}`}
+                        key={card.id}
+                        onClick={() => handleMemoryCardClick(cardIndex)}
+                        aria-label={isFlipped ? `Carta de ${card.visual}` : 'Carta oculta'}
+                      >
+                        <span className="contenido-carta">
+                          <span className="reverso-carta">?</span>
+                          <span className="cara-carta"><Icon name={card.visual} size={42} /></span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {gameFeedback ? <p className={`retroalimentacion-juego ${gameFeedback.startsWith('¡') ? 'correcto' : 'incorrecto'}`}>{gameFeedback}</p> : null}
+              </>
+            ) : (
+              <>
+                <div className="progreso-juego">Pregunta {gameQuestionIndex + 1} de {TOTAL_QUESTIONS}</div>
+                <span className="visual-pregunta"><Icon name={question.visual} size={54} /></span>
+                <button type="button" className="boton-escuchar" onClick={() => speak(question.prompt)}><Icon name="volume" size={18} /> Escuchar pregunta</button>
+                <h1 className={['espacial', 'figuras'].includes(gameActivity.categoria) ? 'pregunta-visual' : ''}>{question.prompt}</h1>
+                <div className="rejilla-respuestas">{question.options.map((option) => <button type="button" key={option} onClick={() => answerQuestion(option)}><span className="visual-respuesta"><Icon name={optionVisuals[option]} size={42} /></span><span className="etiqueta-respuesta">{option}</span></button>)}</div>
+                {gameFeedback ? <p className={`retroalimentacion-juego ${gameFeedback.startsWith('¡') ? 'correcto' : 'incorrecto'}`}>{gameFeedback}</p> : null}
+              </>
+            )}
           </section>
         </main>
       )
@@ -531,7 +621,7 @@ function App() {
       </aside>
       <section className="contenido-docente">
         <header className="encabezado-contenido"><div><p className="subtitulo">Panel docente</p><h1>{section === 'estudiantes' ? 'Estudiantes' : section === 'actividades' ? 'Actividades educativas' : 'Reportes de progreso'}</h1></div><span className="indicador-estado">● Sistema conectado</span></header>
-        {section === 'estudiantes' ? <><section className="rejilla-resumen"><div className="tarjeta-resumen"><span className="icono-estadistica morado">👥</span><div><strong>{students.length}</strong><span>Estudiantes registrados</span></div></div><div className="tarjeta-resumen"><span className="icono-estadistica amarillo">🎮</span><div><strong>{activities.length}</strong><span>Actividades disponibles</span></div></div></section><section className="tarjeta-panel"><div className="titulo-panel"><div><h2>Registrar estudiante</h2><p>Agrega un nuevo perfil infantil al sistema.</p></div></div><form className="formulario-estudiante" onSubmit={handleSubmit}><div><label htmlFor="name">Nombre completo</label><input id="name" placeholder="Ejemplo: Sofía García" value={name} onChange={(event) => setName(event.target.value)} disabled={loading} maxLength={100} /></div><div><label htmlFor="age">Edad</label><input id="age" type="number" min="1" max="14" placeholder="5" value={age} onChange={(event) => setAge(event.target.value)} disabled={loading} /></div><button type="submit" disabled={loading}>{loading ? 'Guardando...' : '＋ Registrar estudiante'}</button></form></section><section className="tarjeta-panel"><div className="titulo-panel"><div><h2>Seleccionar estudiante</h2><p>Elige un perfil para iniciar una sesión de juego.</p></div><button className="boton-primario-pequeno" onClick={openChildMode}>Entrar al modo niño</button></div><select value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)} disabled={loading || !students.length}><option value="">Selecciona un estudiante...</option>{students.map((student) => <option key={student.id} value={student.id}>{student.nombre} ({student.edad} años)</option>)}</select>{selectedStudent ? <p className="seleccionado">Perfil activo: <strong>{selectedStudent.nombre}</strong></p> : <p className="atenuado">Aún no has seleccionado un estudiante.</p>}</section></> : null}
+        {section === 'estudiantes' ? <><section className="rejilla-resumen"><div className="tarjeta-resumen"><span className="icono-estadistica azul"><Icon name="users" size={24} /></span><div><strong>{students.length}</strong><span>Estudiantes registrados</span></div></div><div className="tarjeta-resumen"><span className="icono-estadistica verde"><Icon name="gamepad" size={24} /></span><div><strong>{activities.length}</strong><span>Actividades disponibles</span></div></div></section><section className="tarjeta-panel"><div className="titulo-panel"><div><h2>Registrar estudiante</h2><p>Agrega un nuevo perfil infantil al sistema.</p></div></div><form className="formulario-estudiante" onSubmit={handleSubmit}><div><label htmlFor="name">Nombre completo</label><input id="name" placeholder="Ejemplo: Sofía García" value={name} onChange={(event) => setName(event.target.value)} disabled={loading} maxLength={100} /></div><div><label htmlFor="age">Edad</label><input id="age" type="number" min="1" max="14" placeholder="5" value={age} onChange={(event) => setAge(event.target.value)} disabled={loading} /></div><button type="submit" disabled={loading}>{loading ? 'Guardando...' : '＋ Registrar estudiante'}</button></form></section><section className="tarjeta-panel"><div className="titulo-panel"><div><h2>Seleccionar estudiante</h2><p>Elige un perfil para iniciar una sesión de juego.</p></div><button className="boton-primario-pequeno" onClick={openChildMode}>Entrar al modo niño</button></div><select value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)} disabled={loading || !students.length}><option value="">Selecciona un estudiante...</option>{students.map((student) => <option key={student.id} value={student.id}>{student.nombre} ({student.edad} años)</option>)}</select>{selectedStudent ? <p className="seleccionado">Perfil activo: <strong>{selectedStudent.nombre}</strong></p> : <p className="atenuado">Aún no has seleccionado un estudiante.</p>}</section></> : null}
         {section === 'actividades' ? <section className="tarjeta-panel"><div className="titulo-panel"><div><h2>Catálogo de actividades</h2><p>Actividades disponibles para los niveles educativos.</p></div></div><div className="actividades-docente">{activities.map((activity) => <article key={activity.id}><span className="icono-actividad"><Icon name={activityVisuals[activity.categoria]} size={28} /></span><div><h3>{activity.nombre}</h3><p>{activity.descripcion}</p><small>{activity.nivel} · {activity.categoria}</small></div></article>)}</div></section> : null}
         {section === 'reportes' ? <section className="tarjeta-panel"><div className="titulo-panel"><div><h2>Historial de progreso</h2><p>Consulta el rendimiento registrado de cada estudiante.</p></div></div>{progress.length ? <div className="envoltura-tabla"><table><thead><tr><th>Estudiante</th><th>Actividad</th><th>Puntuación</th><th>Aciertos</th><th>Errores</th></tr></thead><tbody>{progress.map((item) => <tr key={item.id}><td>{item.estudiante}</td><td>{item.actividad}</td><td>{item.puntuacion}</td><td>{item.aciertos}</td><td>{item.errores}</td></tr>)}</tbody></table></div> : <p className="estado-vacio">Todavía no hay partidas registradas.</p>}</section> : null}
         {error ? <p className="alerta error">{error}</p> : null}{message ? <p className="alerta exito">{message}</p> : null}
