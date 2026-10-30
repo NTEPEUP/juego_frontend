@@ -1,5 +1,5 @@
 .pantalla {
-  max-width: 480px;
+  max-width: 1200px;
   min-height: 100vh;
   margin: auto;
   padding: 24px 16px;
@@ -21,13 +21,14 @@
 .boton-regresar {
   display: block;
   margin: 0 0 20px;
-  padding: 0;
+  padding: 8px 12px ;
   color: var(--accent);
   background: transparent;
 }
 .tarjeta-login h1 {
   margin: 8px 0;
   font-size: 1.8rem;
+  min-width: 400px;
 }
 .marca {
   display: inline-grid;
@@ -42,6 +43,11 @@
 .titulo-panel p,
 .actividades-docente p {
   color: #607080;
+}
+h1 {
+  margin: 8px 0;
+  font-size: 1.8rem;
+  color: #23445f;
 }
 .formulario,
 .formulario-estudiante {
@@ -154,7 +160,6 @@ button:disabled {
   place-items: center;
   padding: 24px;
   box-sizing: border-box;
-  background: linear-gradient(135deg, #eaf3ff, #f0fbf6);
 }
 .tarjeta-inicio,
 .tarjeta-seleccion-estudiante {
@@ -744,6 +749,12 @@ th {
   color: #23445f;
   background: #fffdf7;
   box-shadow: inset 0 0 0 2px #e8dfcd, 0 5px 0 #d9cdb7, 0 8px 14px rgba(89, 61, 19, 0.12);
+}
+.cara-carta img {
+  display: block;
+  width: 84%;
+  height: 84%;
+  object-fit: contain;
 }
 .carta-memoria.volteada .contenido-carta {
   transform: rotateY(180deg);

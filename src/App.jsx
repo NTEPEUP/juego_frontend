@@ -31,7 +31,16 @@ const optionVisuals = {
   mono: 'monkey',
   tigre: 'tiger',
 }
-const memoryPairs = ['cat', 'dog', 'rabbit', 'frog', 'monkey', 'tiger', 'fish', 'bird']
+const memoryPairs = [
+  '/img/memoria/1.webp',
+  '/img/memoria/2.webp',
+  '/img/memoria/3.webp',
+  '/img/memoria/4.webp',
+  '/img/memoria/5.webp',
+  '/img/memoria/6.webp',
+  '/img/memoria/7.webp',
+  '/img/memoria/8.webp',
+]
 
 function Icon({ name, size = 24, className = '' }) {
   const paths = {
@@ -147,8 +156,8 @@ function createQuestion(category, index) {
 
 function createMemoryDeck() {
   return memoryPairs
-    .flatMap((visual) => [visual, visual])
-    .map((visual, index) => ({ id: `${visual}-${index}`, visual }))
+    .flatMap((image) => [image, image])
+    .map((image, index) => ({ id: `${image}-${index}`, image }))
     .sort(() => Math.random() - 0.5)
 }
 
@@ -191,6 +200,16 @@ function App() {
     () => students.find((student) => String(student.id) === selectedStudentId),
     [selectedStudentId, students],
   )
+
+  useEffect(() => {
+    if (!childMode) return
+
+    memoryPairs.forEach((source) => {
+      const image = new Image()
+      image.decoding = 'async'
+      image.src = source
+    })
+  }, [childMode])
 
   async function apiFetch(path, options = {}) {
     const headers = new Headers(options.headers)
@@ -414,7 +433,7 @@ function App() {
     if (nextFlipped.length < 2) return
 
     const [firstIndex, secondIndex] = nextFlipped
-    const isMatch = memoryCards[firstIndex].visual === memoryCards[secondIndex].visual
+    const isMatch = memoryCards[firstIndex].image === memoryCards[secondIndex].image
     setMemoryLock(true)
 
     if (isMatch) {
@@ -456,11 +475,11 @@ function App() {
           <div className="rejilla-modos">
             <button type="button" className="tarjeta-modo modo-docente" onClick={() => setEntryView('teacher-login')}>
               <span><Icon name="teacher" size={38} /></span><strong>Modo docente</strong>
-              <small>Administra estudiantes, actividades y reportes.</small><b>Ingresar al panel →</b>
+              <small>Administra estudiantes, actividades y reportes.</small><b>Ingresar al panel</b>
             </button>
             <button type="button" className="tarjeta-modo modo-estudiante" onClick={openStudentMode}>
               <span><Icon name="student" size={38} /></span><strong>Modo estudiante</strong>
-              <small>Elige tu perfil y empieza a jugar.</small><b>Empezar a jugar →</b>
+              <small>Elige tu perfil y empieza a jugar.</small><b>Empezar a jugar</b>
             </button>
           </div>
           {error ? <p className="alerta error">{error}</p> : null}
@@ -473,10 +492,10 @@ function App() {
     return (
       <main className="pantalla pantalla-login">
         <section className="tarjeta tarjeta-login">
-          <button type="button" className="boton-regresar" onClick={() => { setEntryView('home'); setError('') }}>← Volver</button>
+          <button type="button" className="boton-regresar" onClick={() => { setEntryView('home'); setError('') }}>Volver</button>
           <span className="marca"><Icon name="cap" size={34} /></span>
-          <h1>Sistema Educativo Infantil</h1>
-          <p className="descripcion-login">Acceso para docentes y tutores</p>
+          <h1>Iniciar sesión</h1>
+          <p className="descripcion-login">Acceso para docentes</p>
           <form className="formulario" onSubmit={handleLogin}>
             <label htmlFor="username">Usuario</label>
             <input id="username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
@@ -494,7 +513,7 @@ function App() {
     return (
       <main className="pantalla-seleccion-estudiante">
         <section className="tarjeta-seleccion-estudiante">
-          <button type="button" className="boton-regresar" onClick={() => { setEntryView('home'); setError('') }}>← Volver</button>
+          <button type="button" className="boton-regresar" onClick={() => { setEntryView('home'); setError('') }}>Volver</button>
           <span className="icono-seleccion-estudiante"><Icon name="rainbow" size={42} /></span>
           <p className="subtitulo">Modo estudiante</p>
           <h1>¿Quién va a jugar?</h1>
@@ -536,7 +555,7 @@ function App() {
       return (
         <main className={`aplicacion-infantil pantalla-juego ${['espacial', 'figuras', 'memoria'].includes(gameActivity.categoria) ? 'juego-preprimaria' : ''}`}>
           <section className="tarjeta-juego">
-            <button type="button" className="boton-regresar" onClick={() => setGameActivity(null)}>← Volver a actividades</button>
+            <button type="button" className="boton-regresar" onClick={() => setGameActivity(null)}>Volver a actividades</button>
             {gameActivity.categoria === 'memoria' ? (
               <>
                 <div className="progreso-juego">Parejas encontradas: {gameCorrect} de {memoryPairs.length}</div>
@@ -552,11 +571,11 @@ function App() {
                         className={`carta-memoria ${isFlipped ? 'volteada' : ''} ${isMatched ? 'encontrada' : ''}`}
                         key={card.id}
                         onClick={() => handleMemoryCardClick(cardIndex)}
-                        aria-label={isFlipped ? `Carta de ${card.visual}` : 'Carta oculta'}
+                        aria-label={isFlipped ? 'Carta descubierta' : 'Carta oculta'}
                       >
                         <span className="contenido-carta">
                           <span className="reverso-carta">?</span>
-                          <span className="cara-carta"><Icon name={card.visual} size={42} /></span>
+                        <span className="cara-carta"><img src={card.image} alt="" decoding="async" loading="eager" /></span>
                         </span>
                       </button>
                     )
